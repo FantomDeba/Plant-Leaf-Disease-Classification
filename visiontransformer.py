@@ -175,10 +175,6 @@ history = vit_model.fit(
     class_weight=class_weight_dict,   
     callbacks=[early_stopping]
 )
-
-# =========================================
-# 6. Evaluation
-# =========================================
 test_loss, test_accuracy = vit_model.evaluate(test_augmentated)
 print("Test Loss:", test_loss)
 print("Test Accuracy:", test_accuracy)
