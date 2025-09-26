@@ -10,10 +10,6 @@ import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import layers, Model
 from tensorflow.keras.callbacks import EarlyStopping
-
-# =========================================
-# 1. Dataset Preparation + Invalid File Filter
-# =========================================
 def create_data_set(path):
     images, labels = [], []
     for folder in os.listdir(path):
@@ -39,8 +35,6 @@ def filter_invalid_images(df):
         except:
             continue
     return pd.DataFrame({"file_paths": valid_files, "labels": valid_labels})
-
-# ⚠️ Adjust path if needed (should point to folder containing 15 class dirs)
 DATASET_PATH = r"E:\placement\plantVillageDataClassification\PlantVillage\PlantVillage"
 
 data = create_data_set(DATASET_PATH)
@@ -55,10 +49,6 @@ valid_data, test_data = train_test_split(
     dummy_data, test_size=0.5, random_state=44, stratify=dummy_data["labels"]
 )
 print("Train:", len(train_data), " Val:", len(valid_data), " Test:", len(test_data))
-
-# =========================================
-# 2. Data Augmentation
-# =========================================
 train_datagen = ImageDataGenerator(
     rescale=1./255,
     rotation_range=30,
@@ -103,14 +93,8 @@ test_augmentated = test_datagen.flow_from_dataframe(
     batch_size=32,
     shuffle=False
 )
-
-# ✅ Correct way to get number of classes
 num_classes = len(training_augmentation.class_indices)
 print("Number of classes:", num_classes)
-
-# =========================================
-# 3. Vision Transformer Implementation
-# =========================================
 class Patches(layers.Layer):
     def __init__(self, patch_size):
         super().__init__()
@@ -132,7 +116,7 @@ class PatchEncoder(layers.Layer):
         self.projection = layers.Dense(units=projection_dim)
         self.position_embedding = layers.Embedding(input_dim=num_patches, output_dim=projection_dim)
     def call(self, patch):
-        num_patches = tf.shape(patch)[1]                 # ✅ dynamic length
+        num_patches = tf.shape(patch)[1]                
         positions = tf.range(start=0, limit=num_patches, delta=1)
         encoded = self.projection(patch) + self.position_embedding(positions)
         return encoded
@@ -157,8 +141,6 @@ def create_vit_classifier(image_size=224, patch_size=16, projection_dim=64,
         x3 = layers.LayerNormalization(epsilon=1e-6)(x2)
         x3 = mlp(x3, hidden_units=[projection_dim*2, projection_dim], dropout_rate=0.1)
         encoded = layers.Add()([x3, x2])
-
-    # ✅ Global Average Pooling (instead of Flatten)
     representation = layers.LayerNormalization(epsilon=1e-6)(encoded)
     representation = layers.GlobalAveragePooling1D()(representation)
     representation = layers.Dropout(0.5)(representation)
@@ -176,10 +158,6 @@ vit_model.compile(
 )
 
 vit_model.summary()
-
-# =========================================
-# 4. Class Weighting (Imbalance Handling)
-# =========================================
 train_labels = train_data["labels"].values
 class_weights = compute_class_weight(
     class_weight="balanced",
@@ -188,17 +166,13 @@ class_weights = compute_class_weight(
 )
 class_weight_dict = {i: w for i, w in enumerate(class_weights)}
 print("Class Weights:", class_weight_dict)
-
-# =========================================
-# 5. Training
-# =========================================
 early_stopping = EarlyStopping(monitor="val_accuracy", patience=5, restore_best_weights=True)
 
 history = vit_model.fit(
     training_augmentation,
     validation_data=val_augmentated,
     epochs=20,
-    class_weight=class_weight_dict,   # imbalance handling
+    class_weight=class_weight_dict,   
     callbacks=[early_stopping]
 )
 
@@ -208,8 +182,6 @@ history = vit_model.fit(
 test_loss, test_accuracy = vit_model.evaluate(test_augmentated)
 print("Test Loss:", test_loss)
 print("Test Accuracy:", test_accuracy)
-
-# Plot accuracy and loss
 plt.plot(history.history["accuracy"])
 plt.plot(history.history["val_accuracy"])
 plt.title("Training vs Validation Accuracy")
@@ -225,8 +197,6 @@ plt.xlabel("Epochs")
 plt.ylabel("Loss")
 plt.legend(["Train", "Validation"])
 plt.show()
-
-# Classification report
 y_pred = vit_model.predict(test_augmentated)
 y_pred_classes = np.argmax(y_pred, axis=1)
 y_true = test_augmentated.classes
